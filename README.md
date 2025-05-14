@@ -20,8 +20,8 @@ An AI-driven ESG (Environmental, Social, and Governance) platform for African SM
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/CarbonCorp-ESG-App.git
-cd CarbonCorp-ESG-App
+git clone git@github.com:WarutereIan/CarbonCorp-ESG.git
+cd CarbonCorp-ESG
 ```
 
 2. Install dependencies:
@@ -64,35 +64,6 @@ npm start
 pnpm start
 ```
 
-## Troubleshooting
-
-### Layout Router Error
-
-If you still encounter the error: `invariant expected layout router to be mounted` after rolling back to stable versions, try these solutions:
-
-1. Delete the `.next` folder to clear the cache and restart the development server:
-
-```bash
-# Remove .next folder
-rm -rf .next
-# or on Windows
-rmdir /s /q .next
-
-# Restart the development server
-npm run dev
-# or
-pnpm dev
-```
-
-2. Make sure each app route directory has a proper layout.tsx file.
-
-## Technologies
-
-- Next.js 13.4.19 (App Router)
-- React 18.2.0
-- Tailwind CSS
-- Radix UI Components
-- Recharts for data visualization
 
 ## Project Structure
 
