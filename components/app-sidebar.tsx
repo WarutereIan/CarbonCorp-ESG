@@ -10,6 +10,8 @@ import {
   Settings,
   Shield,
   Users,
+  LogOut,
+  User,
 } from "lucide-react"
 import {
   Sidebar,
@@ -24,9 +26,16 @@ import {
   SidebarMenuItem,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button } from "@/components/ui/button"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
 type NavItem = {
@@ -75,6 +84,17 @@ const mainNavItems: NavItem[] = [
 
 export function AppSidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, signOut } = useAuth()
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Sign out failed:', error)
+    }
+  }
 
   return (
     <Sidebar variant="inset">
@@ -108,7 +128,44 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-3">
+        {/* User Info */}
+        {user && (
+          <div className="flex items-center gap-2 p-2 bg-muted rounded-md">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
+              {user.user_metadata?.full_name?.charAt(0) || user.email?.charAt(0) || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {user.user_metadata?.full_name || 'User'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {user.user_metadata?.company_name || user.email}
+              </p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <User className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/profile">
+                    <User className="mr-2 h-4 w-4" />
+                    Profile
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+        
+        {/* Settings and Theme Toggle */}
         <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" asChild>
             <Link href="/settings">

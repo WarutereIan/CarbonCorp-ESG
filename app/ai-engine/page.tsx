@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowRight, Brain, FileQuestion, Lightbulb, MessageSquareText, TrendingUp } from "lucide-react"
 import Link from "next/link"
 import { Wand2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 
 export default function AIEnginePage() {
   return (
@@ -126,9 +127,11 @@ export default function AIEnginePage() {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button>
-                    Continue <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <Link href="/ai-engine/materiality">
+                    <Button>
+                      Start Materiality Assessment <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </CardContent>
@@ -139,6 +142,9 @@ export default function AIEnginePage() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Risk Predictor</CardTitle>
+              <CardDescription>
+                Model ESG risks across different scenarios with AI-powered analysis
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
@@ -157,21 +163,15 @@ export default function AIEnginePage() {
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
                             <span className="text-sm">2°C Temperature Rise</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <Badge variant="outline">Physical Risk</Badge>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">1.5°C Temperature Rise</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <span className="text-sm">Carbon Pricing $50/tCO2</span>
+                            <Badge variant="outline">Transition Risk</Badge>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">3°C Temperature Rise</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <span className="text-sm">Extreme Weather Events</span>
+                            <Badge variant="outline">Physical Risk</Badge>
                           </div>
                         </div>
                       </CardContent>
@@ -184,22 +184,16 @@ export default function AIEnginePage() {
                       <CardContent className="p-4">
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">Carbon Tax Introduction</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <span className="text-sm">CSRD Compliance</span>
+                            <Badge variant="outline">Regulatory</Badge>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">Mandatory CSRD Compliance</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <span className="text-sm">Supply Chain Due Diligence</span>
+                            <Badge variant="outline">Operational</Badge>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm">Water Usage Restrictions</span>
-                            <Button variant="outline" size="sm">
-                              Run Model
-                            </Button>
+                            <span className="text-sm">ESG Disclosure Requirements</span>
+                            <Badge variant="outline">Compliance</Badge>
                           </div>
                         </div>
                       </CardContent>
@@ -207,73 +201,12 @@ export default function AIEnginePage() {
                   </div>
                 </div>
 
-                <div className="rounded-md border p-4">
-                  <h3 className="text-sm font-medium">Recent Predictions</h3>
-                  <div className="mt-4 space-y-4">
-                    <div className="rounded-md border p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                          <TrendingUp className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium">2°C Temperature Rise Impact</h4>
-                          <p className="text-xs text-muted-foreground">Generated on May 10, 2024</p>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <p className="text-sm">Key findings:</p>
-                        <ul className="mt-2 space-y-1 text-sm">
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            15% increase in cooling costs for Lagos facility
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            30% higher water stress for Nairobi operations
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            Supply chain disruptions affecting 25% of suppliers
-                          </li>
-                        </ul>
-                        <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                          View full report <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="rounded-md border p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-                          <TrendingUp className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-medium">Carbon Tax Introduction Impact</h4>
-                          <p className="text-xs text-muted-foreground">Generated on May 5, 2024</p>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <p className="text-sm">Key findings:</p>
-                        <ul className="mt-2 space-y-1 text-sm">
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            Estimated $125,000 annual cost increase
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            8% reduction in profit margins
-                          </li>
-                          <li className="flex items-center gap-2">
-                            <div className="h-1.5 w-1.5 rounded-full bg-primary"></div>
-                            Renewable energy investments would offset 40% of tax
-                          </li>
-                        </ul>
-                        <Button variant="link" className="mt-2 h-auto p-0 text-xs">
-                          View full report <ArrowRight className="ml-1 h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex justify-end">
+                  <Link href="/ai-engine/risk-predictor">
+                    <Button>
+                      Launch Risk Predictor <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </CardContent>

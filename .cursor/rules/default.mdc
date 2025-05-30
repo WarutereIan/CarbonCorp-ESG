@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+I am building the AI powered ESG platform that is described by the documents in reference/ and parts already implemented in the code base. Major parts of the UI are already implemented for the features and some need modifications while we'll be adding other new ones to the platform. The provided guides are comprehensive and not cater for what is implemented and what isn't. for the implemented ones, we will check whether they need modifications as per the guide in terms of functionality but the already existing styling and themes is what will be used. new features to be added should integrate with the already exisiting flow without breaking anything. for any styles or components, be sure to check the implementation in app/components/ui before proceeding with custom implementations
