@@ -35,14 +35,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      // Only show onboarding prompt if there's incomplete onboarding
-      setShowOnboardingPrompt(hasInProgressOnboarding())
+      // Only show onboarding prompt if onboarding is not complete and there's progress to continue
+      const shouldShowPrompt = !isOnboardingComplete() && hasInProgressOnboarding()
+      setShowOnboardingPrompt(shouldShowPrompt)
     }
-  }, [loading, user, hasInProgressOnboarding])
+  }, [loading, user, isOnboardingComplete, hasInProgressOnboarding])
 
   const handleContinueOnboarding = () => {
     // Route to appropriate step based on current progress
-    if (!hasStarted) {
+    if (!hasStartedOnboarding()) {
       router.push("/onboarding/initiate")
     } else {
       // Find the first incomplete step

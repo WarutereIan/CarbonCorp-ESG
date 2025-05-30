@@ -26,7 +26,14 @@ import {
 
 export default function OnboardingCompletePage() {
   const router = useRouter()
-  const { state, clearOnboardingData } = useOnboarding()
+  const { state, markAsComplete, clearOnboardingData } = useOnboarding()
+
+  // Mark onboarding as complete when this page loads
+  useEffect(() => {
+    if (!state.isComplete) {
+      markAsComplete()
+    }
+  }, [state.isComplete, markAsComplete])
 
   const nextSteps = [
     {
@@ -64,12 +71,12 @@ export default function OnboardingCompletePage() {
   ]
 
   const handleNavigateTo = (route: string) => {
-    // Clear onboarding data since it's complete
-    clearOnboardingData()
+    // Don't clear data, just navigate since onboarding is complete
     router.push(route)
   }
 
   const handleStartOver = () => {
+    // Only clear data when explicitly starting over
     clearOnboardingData()
     router.push("/onboarding/initiate")
   }

@@ -32,7 +32,7 @@ export default function ReportingPage() {
             Schedule
           </Button>
           <Button asChild>
-            <Link href="/analytics/reports/new">
+            <Link href="/reporting/new">
               <Plus className="mr-2 h-4 w-4" />
               New Report
             </Link>

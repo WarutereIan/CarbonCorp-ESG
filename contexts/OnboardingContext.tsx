@@ -346,6 +346,7 @@ interface OnboardingContextType {
   hasInProgressOnboarding: () => boolean
   hasStartedOnboarding: () => boolean
   isOnboardingComplete: () => boolean
+  markAsComplete: () => void
   clearOnboardingData: () => void
 }
 
@@ -446,6 +447,10 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     return state.isComplete
   }, [state.isComplete])
 
+  const markAsComplete = useCallback(() => {
+    dispatch({ type: 'MARK_COMPLETE' })
+  }, [])
+
   const clearOnboardingData = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY)
     dispatch({ type: 'LOAD_SAVED_STATE', payload: initialState })
@@ -463,6 +468,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     hasInProgressOnboarding,
     hasStartedOnboarding,
     isOnboardingComplete,
+    markAsComplete,
     clearOnboardingData
   }), [
     state,
@@ -475,6 +481,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     hasInProgressOnboarding,
     hasStartedOnboarding,
     isOnboardingComplete,
+    markAsComplete,
     clearOnboardingData
   ])
 
