@@ -253,7 +253,7 @@ export default function AIEnginePage() {
                         </div>
                         <div className="mt-4 flex justify-end">
                           <Button asChild>
-                            <Link href="/analytics/reports/new?tab=ai">
+                            <Link href="/ai-engine/gen-report">
                               <Wand2 className="mr-2 h-4 w-4" />
                               Generate Report
                             </Link>
@@ -321,6 +321,14 @@ export default function AIEnginePage() {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Link href="/ai-engine/gen-report">
+                    <Button>
+                      Launch Gen AI Reporting <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </CardContent>

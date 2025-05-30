@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
+import { AIAssistantChat } from "@/components/ai-assistant-chat"
 import { useEffect } from 'react'
 
 interface LayoutWrapperProps {
@@ -55,6 +56,7 @@ export const LayoutWrapper = ({ children }: LayoutWrapperProps) => {
         <AppSidebar />
         <SidebarInset className="bg-background">{children}</SidebarInset>
       </div>
+      <AIAssistantChat />
     </SidebarProvider>
   )
 } 

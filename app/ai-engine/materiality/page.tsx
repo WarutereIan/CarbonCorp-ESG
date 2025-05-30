@@ -1750,7 +1750,7 @@ export default function MaterialityAssessmentPage() {
                       }),
                     assessmentMetadata: {
                       completedAt: new Date().toISOString(),
-                      stakeholderInput: assessmentData.stakeholderInput,
+                      stakeholderInput: assessmentData.stakeholderPerspectives,
                       customStakeholders: assessmentData.customStakeholders
                     }
                   }
