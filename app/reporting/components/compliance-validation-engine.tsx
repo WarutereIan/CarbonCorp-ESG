@@ -31,8 +31,31 @@ import {
   Target,
   AlertCircle,
   Info,
-  Zap
+  Zap,
+  CheckCircle2,
+  ArrowLeft,
+  Play,
+  RefreshCw
 } from "lucide-react"
+
+interface ReportContent {
+  title: string
+  sections: {
+    id: string
+    title: string
+    content: string
+    status: 'pending' | 'generating' | 'completed' | 'error'
+    wordCount: number
+    confidence: number
+  }[]
+  metadata: {
+    totalWordCount: number
+    averageConfidence: number
+    generatedAt: string
+    framework: string
+    reportingPeriod: string
+  }
+}
 
 interface ComplianceRequirement {
   id: string
@@ -40,862 +63,531 @@ interface ComplianceRequirement {
   section: string
   title: string
   description: string
-  type: 'mandatory' | 'conditional' | 'recommended'
-  status: 'met' | 'partially-met' | 'not-met' | 'not-applicable' | 'needs-review'
-  evidence?: {
-    reportSection: string
-    content: string
-    confidence: number
-  }
-  gaps?: string[]
-  aiSuggestions?: string[]
-  dueDate?: string
-  priority: 'critical' | 'high' | 'medium' | 'low'
+  mandatory: boolean
+  status: 'not-checked' | 'checking' | 'compliant' | 'partially-compliant' | 'non-compliant' | 'not-applicable'
+  evidence?: string[]
+  issues?: string[]
+  recommendations?: string[]
+  score?: number
 }
 
-interface ComplianceFramework {
-  id: string
-  name: string
-  description: string
-  version: string
-  requirements: ComplianceRequirement[]
-  overallScore: number
-}
-
-interface ComplianceValidationProps {
-  reportContent: any
+interface ComplianceValidationEngineProps {
+  reportContent: ReportContent
   selectedFrameworks: string[]
+  onValidationComplete: (results: any) => void
   onIssueResolve: (requirementId: string, resolution: any) => void
-  onValidationComplete?: () => void
 }
 
 export function ComplianceValidationEngine({ 
   reportContent, 
   selectedFrameworks, 
-  onIssueResolve,
-  onValidationComplete
-}: ComplianceValidationProps) {
-  const [frameworks, setFrameworks] = useState<ComplianceFramework[]>([])
-  const [selectedFramework, setSelectedFramework] = useState<string>('all')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [priorityFilter, setPriorityFilter] = useState<string>('all')
-  const [searchQuery, setSearchQuery] = useState<string>('')
-  const [isValidating, setIsValidating] = useState(false)
+  onValidationComplete, 
+  onIssueResolve 
+}: ComplianceValidationEngineProps) {
   const [validationProgress, setValidationProgress] = useState(0)
-  const [isResolvingIssue, setIsResolvingIssue] = useState<string | null>(null)
-  const [resolutionComments, setResolutionComments] = useState<{[key: string]: string}>({})
+  const [isRunning, setIsRunning] = useState(false)
+  const [requirements, setRequirements] = useState<ComplianceRequirement[]>([])
+  const [selectedFramework, setSelectedFramework] = useState<string>(selectedFrameworks[0] || 'CSRD')
 
-  // Initialize frameworks and requirements
+  // Mock compliance requirements based on selected frameworks
+  const frameworkRequirements = {
+    'CSRD': [
+      {
+        id: 'esrs-e1-1',
+        framework: 'CSRD',
+        section: 'ESRS E1',
+        title: 'Transition plan for climate change mitigation',
+        description: 'The undertaking shall disclose its transition plan for climate change mitigation',
+        mandatory: true
+      },
+      {
+        id: 'esrs-e1-2',
+        framework: 'CSRD',
+        section: 'ESRS E1',
+        title: 'Policies implemented to manage material climate-related impacts',
+        description: 'Disclosure of policies related to climate change mitigation and adaptation',
+        mandatory: true
+      },
+      {
+        id: 'esrs-e1-6',
+        framework: 'CSRD',
+        section: 'ESRS E1',
+        title: 'Gross Scopes 1, 2, 3 and Total GHG emissions',
+        description: 'Quantitative disclosure of greenhouse gas emissions',
+        mandatory: true
+      },
+      {
+        id: 'esrs-s1-1',
+        framework: 'CSRD',
+        section: 'ESRS S1',
+        title: 'Policies related to own workforce',
+        description: 'Disclosure of policies related to the management of impacts on own workforce',
+        mandatory: true
+      }
+    ],
+    'ISSB S2': [
+      {
+        id: 'issb-s2-gov',
+        framework: 'ISSB S2',
+        section: 'Governance',
+        title: 'Climate-related governance',
+        description: 'Governance processes, controls and procedures used to monitor climate-related risks and opportunities',
+        mandatory: true
+      },
+      {
+        id: 'issb-s2-strategy',
+        framework: 'ISSB S2',
+        section: 'Strategy',
+        title: 'Climate-related strategy',
+        description: 'Climate-related risks and opportunities that affect strategy and decision-making',
+        mandatory: true
+      },
+      {
+        id: 'issb-s2-risk',
+        framework: 'ISSB S2',
+        section: 'Risk Management',
+        title: 'Climate-related risk management',
+        description: 'Processes used to identify, assess, prioritize and monitor climate-related risks',
+        mandatory: true
+      },
+      {
+        id: 'issb-s2-metrics',
+        framework: 'ISSB S2',
+        section: 'Metrics and Targets',
+        title: 'Climate-related metrics and targets',
+        description: 'Metrics and targets used to manage climate-related risks and opportunities',
+        mandatory: true
+      }
+    ],
+    'GRI': [
+      {
+        id: 'gri-2-1',
+        framework: 'GRI',
+        section: 'GRI 2',
+        title: 'Organizational details',
+        description: 'Basic organizational information and reporting entity details',
+        mandatory: true
+      },
+      {
+        id: 'gri-2-6',
+        framework: 'GRI',
+        section: 'GRI 2',
+        title: 'Activities, value chain and other business relationships',
+        description: 'Description of activities, value chain and business relationships',
+        mandatory: true
+      },
+      {
+        id: 'gri-305-1',
+        framework: 'GRI',
+        section: 'GRI 305',
+        title: 'Direct (Scope 1) GHG emissions',
+        description: 'Gross direct (Scope 1) GHG emissions in metric tons of CO2 equivalent',
+        mandatory: false
+      }
+    ]
+  }
+
   useEffect(() => {
-    initializeFrameworks()
+    // Initialize requirements based on selected frameworks
+    const allRequirements = selectedFrameworks.flatMap(framework => 
+      (frameworkRequirements[framework as keyof typeof frameworkRequirements] || []).map(req => ({
+        ...req,
+        status: 'not-checked' as const
+      }))
+    )
+    setRequirements(allRequirements)
   }, [selectedFrameworks])
 
-  const initializeFrameworks = () => {
-    const frameworkData: ComplianceFramework[] = []
-
-    if (selectedFrameworks.includes('issb')) {
-      frameworkData.push({
-        id: 'issb',
-        name: 'ISSB S1/S2',
-        description: 'International Sustainability Standards Board',
-        version: '2023',
-        overallScore: 0,
-        requirements: [
-          {
-            id: 'issb-s1-governance',
-            framework: 'ISSB S1',
-            section: 'Governance',
-            title: 'Governance processes and controls',
-            description: 'Disclose governance processes, controls, and procedures for monitoring, managing, and overseeing sustainability-related risks and opportunities',
-            type: 'mandatory',
-            status: 'needs-review',
-            priority: 'critical',
-            gaps: ['Missing board oversight details', 'No risk management process described'],
-            aiSuggestions: ['Add section on board sustainability committee', 'Include risk assessment methodology'],
-            dueDate: '2024-12-31'
-          },
-          {
-            id: 'issb-s1-strategy',
-            framework: 'ISSB S1',
-            section: 'Strategy',
-            title: 'Strategy for managing sustainability risks and opportunities',
-            description: 'Disclose information about sustainability-related risks and opportunities that affect business model, strategy and cash flows',
-            type: 'mandatory',
-            status: 'partially-met',
-            priority: 'critical',
-            evidence: {
-              reportSection: 'Strategic Overview',
-              content: 'Our sustainability strategy focuses on...',
-              confidence: 75
-            },
-            gaps: ['Missing quantitative impact analysis'],
-            aiSuggestions: ['Add financial impact projections', 'Include scenario analysis results']
-          },
-          {
-            id: 'issb-s2-climate-governance',
-            framework: 'ISSB S2',
-            section: 'Climate Governance',
-            title: 'Climate-related governance',
-            description: 'Disclose governance arrangements for climate-related risks and opportunities',
-            type: 'mandatory',
-            status: 'met',
-            priority: 'critical',
-            evidence: {
-              reportSection: 'Climate Governance',
-              content: 'Our Board Climate Committee oversees...',
-              confidence: 95
-            }
-          },
-          {
-            id: 'issb-s2-metrics',
-            framework: 'ISSB S2',
-            section: 'Metrics and Targets',
-            title: 'Climate-related metrics and targets',
-            description: 'Disclose metrics and targets used to assess and manage climate-related risks and opportunities',
-            type: 'mandatory',
-            status: 'not-met',
-            priority: 'high',
-            gaps: ['Missing Scope 3 emissions data', 'No climate targets set'],
-            aiSuggestions: ['Calculate Scope 3 emissions using available data', 'Set science-based targets']
-          }
-        ]
-      })
-    }
-
-    if (selectedFrameworks.includes('csrd')) {
-      frameworkData.push({
-        id: 'csrd',
-        name: 'CSRD ESRS',
-        description: 'Corporate Sustainability Reporting Directive',
-        version: '2023',
-        overallScore: 0,
-        requirements: [
-          {
-            id: 'esrs-2-general',
-            framework: 'ESRS 2',
-            section: 'General Disclosures',
-            title: 'Basis for preparation',
-            description: 'General basis for preparation of sustainability statements',
-            type: 'mandatory',
-            status: 'met',
-            priority: 'critical',
-            evidence: {
-              reportSection: 'Methodology',
-              content: 'This report has been prepared in accordance with...',
-              confidence: 90
-            }
-          },
-          {
-            id: 'esrs-e1-transition-plan',
-            framework: 'ESRS E1',
-            section: 'Climate Change',
-            title: 'Transition plan for climate change mitigation',
-            description: 'Disclosure of transition plan for climate change mitigation including targets and actions',
-            type: 'mandatory',
-            status: 'partially-met',
-            priority: 'critical',
-            gaps: ['Missing detailed implementation timeline', 'No budget allocation specified'],
-            aiSuggestions: ['Add 5-year implementation roadmap', 'Include investment requirements']
-          },
-          {
-            id: 'esrs-e1-ghg-emissions',
-            framework: 'ESRS E1',
-            section: 'Climate Change',
-            title: 'Gross Scopes 1, 2, 3 and Total GHG emissions',
-            description: 'Disclosure of gross GHG emissions by scope with calculation methodology',
-            type: 'mandatory',
-            status: 'met',
-            priority: 'critical',
-            evidence: {
-              reportSection: 'GHG Emissions',
-              content: 'Total GHG emissions for 2023: Scope 1: 1,234 tCO2e...',
-              confidence: 88
-            }
-          },
-          {
-            id: 'esrs-s1-workforce',
-            framework: 'ESRS S1',
-            section: 'Own Workforce',
-            title: 'Characteristics of employees',
-            description: 'Information about characteristics of the undertaking\'s employees',
-            type: 'mandatory',
-            status: 'not-met',
-            priority: 'medium',
-            gaps: ['Missing gender diversity breakdown', 'No age group analysis'],
-            aiSuggestions: ['Add diversity metrics table', 'Include workforce demographics chart']
-          }
-        ]
-      })
-    }
-
-    if (selectedFrameworks.includes('gri')) {
-      frameworkData.push({
-        id: 'gri',
-        name: 'GRI Standards',
-        description: 'Global Reporting Initiative Universal Standards',
-        version: '2021',
-        overallScore: 0,
-        requirements: [
-          {
-            id: 'gri-2-1',
-            framework: 'GRI 2',
-            section: 'Organizational Details',
-            title: 'Organizational details',
-            description: 'Report organizational details including name, headquarters, operations',
-            type: 'mandatory',
-            status: 'met',
-            priority: 'medium',
-            evidence: {
-              reportSection: 'About Us',
-              content: 'CarbonCorp is headquartered in...',
-              confidence: 100
-            }
-          },
-          {
-            id: 'gri-3-1',
-            framework: 'GRI 3',
-            section: 'Material Topics',
-            title: 'Process to determine material topics',
-            description: 'Description of the process followed to determine material topics',
-            type: 'mandatory',
-            status: 'partially-met',
-            priority: 'high',
-            gaps: ['Missing stakeholder engagement details'],
-            aiSuggestions: ['Add stakeholder consultation methodology', 'Include materiality matrix']
-          }
-        ]
-      })
-    }
-
-    // Calculate overall scores
-    frameworkData.forEach(framework => {
-      const totalRequirements = framework.requirements.length
-      const metRequirements = framework.requirements.filter(r => r.status === 'met').length
-      const partiallyMet = framework.requirements.filter(r => r.status === 'partially-met').length * 0.5
-      framework.overallScore = Math.round(((metRequirements + partiallyMet) / totalRequirements) * 100)
-    })
-
-    setFrameworks(frameworkData)
-  }
-
-  const runFullComplianceCheck = async () => {
-    setIsValidating(true)
+  const startValidation = async () => {
+    setIsRunning(true)
     setValidationProgress(0)
 
-    // Simulate validation process
-    const totalSteps = frameworks.reduce((acc, f) => acc + f.requirements.length, 0)
-    let currentStep = 0
-
-    for (const framework of frameworks) {
-      for (const requirement of framework.requirements) {
-        // Simulate AI validation
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        currentStep++
-        setValidationProgress(Math.round((currentStep / totalSteps) * 100))
-        
-        // Simulate updating requirement status based on report content
-        if (Math.random() > 0.3) { // 70% chance of finding evidence
-          requirement.status = Math.random() > 0.5 ? 'met' : 'partially-met'
-          if (!requirement.evidence && requirement.status === 'met') {
-            requirement.evidence = {
-              reportSection: 'Generated Section',
-              content: 'AI-detected relevant content...',
-              confidence: Math.round(Math.random() * 30 + 70)
-            }
-          }
-        }
-      }
-    }
-
-    setIsValidating(false)
-    // Recalculate scores
-    initializeFrameworks()
-  }
-
-  const filteredRequirements = () => {
-    let allRequirements: ComplianceRequirement[] = []
-    
-    if (selectedFramework === 'all') {
-      allRequirements = frameworks.flatMap(f => f.requirements)
-    } else {
-      const framework = frameworks.find(f => f.id === selectedFramework)
-      allRequirements = framework?.requirements || []
-    }
-
-    return allRequirements.filter(req => {
-      const matchesStatus = statusFilter === 'all' || req.status === statusFilter
-      const matchesPriority = priorityFilter === 'all' || req.priority === priorityFilter
-      const matchesSearch = searchQuery === '' || 
-        req.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        req.description.toLowerCase().includes(searchQuery.toLowerCase())
+    // Simulate compliance checking process
+    for (let i = 0; i < requirements.length; i++) {
+      const requirement = requirements[i]
       
-      return matchesStatus && matchesPriority && matchesSearch
-    })
+      // Update requirement status to checking
+      setRequirements(prev => prev.map(req => 
+        req.id === requirement.id ? { ...req, status: 'checking' } : req
+      ))
+
+      // Simulate validation time
+      await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 2000))
+
+      // Mock validation result
+      const mockResult = generateMockValidationResult(requirement, reportContent)
+      
+      setRequirements(prev => prev.map(req => 
+        req.id === requirement.id ? { ...req, ...mockResult } : req
+      ))
+
+      setValidationProgress(((i + 1) / requirements.length) * 100)
+    }
+
+    setIsRunning(false)
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'met': return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'partially-met': return <AlertTriangle className="h-4 w-4 text-yellow-500" />
-      case 'not-met': return <XCircle className="h-4 w-4 text-red-500" />
-      case 'not-applicable': return <Info className="h-4 w-4 text-gray-400" />
-      case 'needs-review': return <Clock className="h-4 w-4 text-blue-500" />
-      default: return <AlertCircle className="h-4 w-4" />
+  const generateMockValidationResult = (requirement: ComplianceRequirement, content: ReportContent) => {
+    // Mock logic to determine compliance status
+    const random = Math.random()
+    let status: ComplianceRequirement['status']
+    let score: number
+    let evidence: string[] = []
+    let issues: string[] = []
+    let recommendations: string[] = []
+
+    // Check if related content exists
+    const relatedSections = content.sections.filter(section => {
+      const lowerContent = section.content.toLowerCase()
+      return (
+        lowerContent.includes('climate') ||
+        lowerContent.includes('emission') ||
+        lowerContent.includes('governance') ||
+        lowerContent.includes('risk') ||
+        lowerContent.includes('strategy')
+      )
+    })
+
+    if (relatedSections.length > 0) {
+      if (random > 0.8) {
+        status = 'compliant'
+        score = Math.floor(90 + Math.random() * 10)
+        evidence = [`Content found in section: ${relatedSections[0].title}`, 'Adequate disclosure provided']
+      } else if (random > 0.4) {
+        status = 'partially-compliant'
+        score = Math.floor(60 + Math.random() * 30)
+        evidence = [`Partial content found in section: ${relatedSections[0].title}`]
+        issues = ['Missing quantitative data', 'Insufficient detail on implementation']
+        recommendations = ['Add specific metrics and targets', 'Include timeline for implementation']
+      } else {
+        status = 'non-compliant'
+        score = Math.floor(20 + Math.random() * 40)
+        issues = ['Required disclosure not found', 'Content does not meet minimum requirements']
+        recommendations = ['Add dedicated section for this requirement', 'Include all mandatory disclosures']
+      }
+    } else {
+      status = 'non-compliant'
+      score = Math.floor(10 + Math.random() * 30)
+      issues = ['No relevant content found in report']
+      recommendations = ['Add section covering this requirement', 'Ensure all mandatory elements are included']
+    }
+
+    return { status, score, evidence, issues, recommendations }
+  }
+
+  const getOverallComplianceScore = () => {
+    const scoredRequirements = requirements.filter(req => req.score !== undefined)
+    if (scoredRequirements.length === 0) return 0
+    return Math.round(scoredRequirements.reduce((sum, req) => sum + (req.score || 0), 0) / scoredRequirements.length)
+  }
+
+  const getStatusCounts = () => {
+    return {
+      compliant: requirements.filter(req => req.status === 'compliant').length,
+      partiallyCompliant: requirements.filter(req => req.status === 'partially-compliant').length,
+      nonCompliant: requirements.filter(req => req.status === 'non-compliant').length,
+      notChecked: requirements.filter(req => req.status === 'not-checked').length
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: ComplianceRequirement['status']) => {
     switch (status) {
-      case 'met': return 'text-green-600 bg-green-50 border-green-200'
-      case 'partially-met': return 'text-yellow-600 bg-yellow-50 border-yellow-200'
-      case 'not-met': return 'text-red-600 bg-red-50 border-red-200'
-      case 'not-applicable': return 'text-gray-600 bg-gray-50 border-gray-200'
-      case 'needs-review': return 'text-blue-600 bg-blue-50 border-blue-200'
+      case 'compliant': return 'text-green-600 bg-green-50 border-green-200'
+      case 'partially-compliant': return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+      case 'non-compliant': return 'text-red-600 bg-red-50 border-red-200'
+      case 'checking': return 'text-blue-600 bg-blue-50 border-blue-200'
       default: return 'text-gray-600 bg-gray-50 border-gray-200'
     }
   }
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'bg-red-100 text-red-800'
-      case 'high': return 'bg-orange-100 text-orange-800'
-      case 'medium': return 'bg-yellow-100 text-yellow-800'
-      case 'low': return 'bg-green-100 text-green-800'
-      default: return 'bg-gray-100 text-gray-800'
+  const getStatusIcon = (status: ComplianceRequirement['status']) => {
+    switch (status) {
+      case 'compliant': return <CheckCircle2 className="h-4 w-4 text-green-600" />
+      case 'partially-compliant': return <AlertCircle className="h-4 w-4 text-yellow-600" />
+      case 'non-compliant': return <XCircle className="h-4 w-4 text-red-600" />
+      case 'checking': return <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />
+      default: return <Clock className="h-4 w-4 text-gray-600" />
     }
   }
 
-  const getOverallComplianceScore = () => {
-    if (frameworks.length === 0) return 0
-    return Math.round(frameworks.reduce((acc, f) => acc + f.overallScore, 0) / frameworks.length)
-  }
-
-  const getTotalIssues = () => {
-    return frameworks.reduce((acc, f) => 
-      acc + f.requirements.filter(r => r.status === 'not-met' || r.status === 'partially-met').length, 0
-    )
-  }
-
-  // New function to check if validation can be completed
-  const canCompleteValidation = () => {
-    const allRequirements = frameworks.flatMap(f => f.requirements)
-    const criticalIssues = allRequirements.filter(r => 
-      r.priority === 'critical' && (r.status === 'not-met' || r.status === 'needs-review')
-    )
-    const highPriorityIssues = allRequirements.filter(r => 
-      r.priority === 'high' && r.status === 'not-met'
-    )
-    
-    // Allow completion if no critical issues and less than 2 high priority issues
-    return criticalIssues.length === 0 && highPriorityIssues.length < 2
-  }
-
-  // New function to handle issue resolution
-  const resolveIssue = async (requirementId: string, resolution: 'accept' | 'not-applicable' | 'manual-fix') => {
-    setIsResolvingIssue(requirementId)
-    
-    // Simulate resolution process
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    
-    setFrameworks(prev => prev.map(framework => ({
-      ...framework,
-      requirements: framework.requirements.map(req => {
-        if (req.id === requirementId) {
-          let newStatus = req.status
-          switch (resolution) {
-            case 'accept':
-              newStatus = 'met'
-              break
-            case 'not-applicable':
-              newStatus = 'not-applicable'
-              break
-            case 'manual-fix':
-              newStatus = 'partially-met' // User will manually address
-              break
-          }
-          return { ...req, status: newStatus }
-        }
-        return req
-      })
-    })))
-
-    // Recalculate scores
-    setTimeout(() => {
-      setFrameworks(prev => prev.map(framework => {
-        const totalRequirements = framework.requirements.length
-        const metRequirements = framework.requirements.filter(r => r.status === 'met').length
-        const partiallyMet = framework.requirements.filter(r => r.status === 'partially-met').length * 0.5
-        const notApplicable = framework.requirements.filter(r => r.status === 'not-applicable').length
-        framework.overallScore = Math.round(((metRequirements + partiallyMet + notApplicable) / totalRequirements) * 100)
-        return framework
-      }))
-    }, 100)
-
-    setIsResolvingIssue(null)
-    onIssueResolve(requirementId, resolution)
-
-    // Check if validation can be completed
-    setTimeout(() => {
-      if (canCompleteValidation()) {
-        onValidationComplete?.()
-      }
-    }, 200)
-  }
-
-  const addResolutionComment = (requirementId: string, comment: string) => {
-    setResolutionComments(prev => ({
-      ...prev,
-      [requirementId]: comment
-    }))
-  }
-
-  const getCriticalIssuesCount = () => {
-    return frameworks.reduce((acc, f) => 
-      acc + f.requirements.filter(r => r.priority === 'critical' && (r.status === 'not-met' || r.status === 'needs-review')).length, 0
-    )
-  }
-
-  const getValidationStatusMessage = () => {
-    const criticalIssues = getCriticalIssuesCount()
-    const totalIssues = getTotalIssues()
-    
-    if (criticalIssues === 0 && totalIssues === 0) {
-      return { type: 'success', message: 'All compliance requirements are met! Ready to proceed.' }
-    } else if (criticalIssues === 0) {
-      return { type: 'warning', message: `${totalIssues} non-critical issues remain. You can proceed or address them for better compliance.` }
-    } else {
-      return { type: 'error', message: `${criticalIssues} critical compliance issues must be resolved before proceeding.` }
-    }
-  }
+  const filteredRequirements = requirements.filter(req => req.framework === selectedFramework)
+  const statusCounts = getStatusCounts()
+  const overallScore = getOverallComplianceScore()
+  const canProceed = requirements.every(req => req.status !== 'not-checked' && req.status !== 'checking')
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header with Overall Status */}
+    <div className="space-y-6">
+      {/* Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Shield className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <CardTitle>Compliance Validation Engine</CardTitle>
-                <CardDescription>
-                  Real-time compliance checking against selected ESG frameworks
-                </CardDescription>
-              </div>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            Compliance Validation
+          </CardTitle>
+          <CardDescription>
+            Validate report compliance against selected ESG frameworks
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Frameworks:</span>
+              <p className="font-medium">{selectedFrameworks.join(', ')}</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-primary">{getOverallComplianceScore()}%</div>
-                <div className="text-xs text-muted-foreground">Overall Score</div>
-              </div>
-              <Button onClick={runFullComplianceCheck} disabled={isValidating}>
-                {isValidating ? (
-                  <>
-                    <Bot className="h-4 w-4 mr-2 animate-pulse" />
-                    Validating...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Run Full Check
-                  </>
-                )}
-              </Button>
+            <div>
+              <span className="text-muted-foreground">Requirements:</span>
+              <p className="font-medium">{requirements.length}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Overall Score:</span>
+              <p className="font-medium">{overallScore}%</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Status:</span>
+              <p className="font-medium">
+                {isRunning ? 'Validating...' : 
+                 canProceed ? 'Complete' : 'Pending'}
+              </p>
             </div>
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
-      {/* Validation Status Alert */}
-      <Alert className={
-        getValidationStatusMessage().type === 'success' ? 'border-green-200 bg-green-50' :
-        getValidationStatusMessage().type === 'warning' ? 'border-yellow-200 bg-yellow-50' :
-        'border-red-200 bg-red-50'
-      }>
-        {getValidationStatusMessage().type === 'success' ? <CheckCircle className="h-4 w-4 text-green-600" /> :
-         getValidationStatusMessage().type === 'warning' ? <AlertTriangle className="h-4 w-4 text-yellow-600" /> :
-         <XCircle className="h-4 w-4 text-red-600" />}
-        <AlertDescription className={
-          getValidationStatusMessage().type === 'success' ? 'text-green-800' :
-          getValidationStatusMessage().type === 'warning' ? 'text-yellow-800' :
-          'text-red-800'
-        }>
-          {getValidationStatusMessage().message}
-        </AlertDescription>
-      </Alert>
-
-      {/* Validation Progress */}
-      {isValidating && (
+      {/* Validation Controls */}
+      {!isRunning && statusCounts.notChecked > 0 && (
         <Card>
           <CardContent className="pt-6">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Validation Progress</span>
-                <span>{validationProgress}%</span>
-              </div>
-              <Progress value={validationProgress} className="h-2" />
-              <div className="text-xs text-muted-foreground">
-                AI is analyzing report content against compliance requirements...
+            <div className="text-center py-8">
+              <Shield className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Ready to Validate</h3>
+              <p className="text-muted-foreground mb-4">
+                Run compliance validation against {requirements.length} requirements across {selectedFrameworks.length} framework(s)
+              </p>
+              <Button onClick={startValidation} size="lg">
+                <Play className="mr-2 h-4 w-4" />
+                Start Compliance Validation
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Validation Progress */}
+      {isRunning && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Validating Requirements...</span>
+                </div>
+                <Progress value={validationProgress} className="w-full max-w-md mx-auto" />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {Math.round(validationProgress)}% complete
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Framework Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {frameworks.map((framework) => (
-          <Card key={framework.id} className="cursor-pointer hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">{framework.name}</CardTitle>
-                <Badge variant="outline">{framework.version}</Badge>
-              </div>
-              <CardDescription className="text-xs">{framework.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium">Compliance Score</span>
-                  <span className="text-sm font-bold">{framework.overallScore}%</span>
+      {/* Results */}
+      {requirements.some(req => req.status !== 'not-checked') && (
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Summary */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Validation Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold mb-1">{overallScore}%</div>
+                  <p className="text-sm text-muted-foreground">Overall Score</p>
                 </div>
-                <Progress value={framework.overallScore} className="h-2" />
                 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="text-center">
-                    <div className="font-bold text-green-600">
-                      {framework.requirements.filter(r => r.status === 'met').length}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-3 w-3 text-green-600" />
+                      <span className="text-sm">Compliant</span>
                     </div>
-                    <div className="text-muted-foreground">Met</div>
+                    <span className="text-sm font-medium">{statusCounts.compliant}</span>
                   </div>
-                  <div className="text-center">
-                    <div className="font-bold text-red-600">
-                      {framework.requirements.filter(r => r.status === 'not-met' || r.status === 'partially-met').length}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-3 w-3 text-yellow-600" />
+                      <span className="text-sm">Partial</span>
                     </div>
-                    <div className="text-muted-foreground">Issues</div>
+                    <span className="text-sm font-medium">{statusCounts.partiallyCompliant}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <XCircle className="h-3 w-3 text-red-600" />
+                      <span className="text-sm">Non-compliant</span>
+                    </div>
+                    <span className="text-sm font-medium">{statusCounts.nonCompliant}</span>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      {/* Filters and Search */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <Label htmlFor="search" className="text-xs">Search Requirements</Label>
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Search by title or description..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
-              </div>
-            </div>
-            
-            <div>
-              <Label className="text-xs">Framework</Label>
-              <Select value={selectedFramework} onValueChange={setSelectedFramework}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Frameworks</SelectItem>
-                  {frameworks.map(f => (
-                    <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs">Status</Label>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="met">Met</SelectItem>
-                  <SelectItem value="partially-met">Partially Met</SelectItem>
-                  <SelectItem value="not-met">Not Met</SelectItem>
-                  <SelectItem value="needs-review">Needs Review</SelectItem>
-                  <SelectItem value="not-applicable">Not Applicable</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-xs">Priority</Label>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="critical">Critical</SelectItem>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                <div className="space-y-2">
+                  <h4 className="font-medium text-sm">Framework Filter</h4>
+                  <div className="space-y-1">
+                    {selectedFrameworks.map(framework => (
+                      <Button
+                        key={framework}
+                        variant={selectedFramework === framework ? "default" : "outline"}
+                        size="sm"
+                        className="w-full justify-start"
+                        onClick={() => setSelectedFramework(framework)}
+                      >
+                        {framework}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Enhanced Requirements List with Resolution Actions */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Compliance Requirements
-            </CardTitle>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">{filteredRequirements().length} requirements</Badge>
-              <Badge variant="destructive" className={getCriticalIssuesCount() === 0 ? 'hidden' : ''}>
-                {getCriticalIssuesCount()} critical
-              </Badge>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export Gap Analysis
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-96">
-            <div className="space-y-4">
-              {filteredRequirements().map((requirement) => (
-                <Card key={requirement.id} className={`border-l-4 ${getStatusColor(requirement.status)}`}>
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          {getStatusIcon(requirement.status)}
-                          <h4 className="font-medium text-sm">{requirement.title}</h4>
-                          <Badge className={getPriorityColor(requirement.priority)}>
-                            {requirement.priority}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                          <span>{requirement.framework}</span>
-                          <span>•</span>
-                          <span>{requirement.section}</span>
-                          {requirement.dueDate && (
-                            <>
-                              <span>•</span>
-                              <span>Due: {requirement.dueDate}</span>
-                            </>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">{requirement.description}</p>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {requirement.type}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  
-                  {(requirement.evidence || requirement.gaps || requirement.aiSuggestions) && (
-                    <CardContent className="pt-0">
-                      <Tabs defaultValue="evidence" className="w-full">
-                        <TabsList className="grid w-full grid-cols-4">
-                          <TabsTrigger value="evidence">Evidence</TabsTrigger>
-                          <TabsTrigger value="gaps">Gaps</TabsTrigger>
-                          <TabsTrigger value="suggestions">AI Suggestions</TabsTrigger>
-                          <TabsTrigger value="actions">Actions</TabsTrigger>
-                        </TabsList>
-
-                        <TabsContent value="evidence" className="mt-3">
-                          {requirement.evidence ? (
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium">Found in: {requirement.evidence.reportSection}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {requirement.evidence.confidence}% confidence
+          {/* Requirements List */}
+          <div className="lg:col-span-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">
+                  {selectedFramework} Requirements ({filteredRequirements.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-96">
+                  <div className="space-y-3">
+                    {filteredRequirements.map((requirement) => (
+                      <Card key={requirement.id} className={`border ${getStatusColor(requirement.status)}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                {getStatusIcon(requirement.status)}
+                                <h4 className="font-medium text-sm">{requirement.title}</h4>
+                                {requirement.mandatory && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Mandatory
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground">{requirement.description}</p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  {requirement.section}
                                 </Badge>
+                                {requirement.score !== undefined && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {requirement.score}%
+                                  </Badge>
+                                )}
                               </div>
-                              <div className="p-2 bg-muted rounded text-xs">
-                                {requirement.evidence.content}
-                              </div>
+                            </div>
+                          </div>
+
+                          {requirement.evidence && requirement.evidence.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-medium text-green-600 mb-1">Evidence Found:</h5>
+                              <ul className="text-xs space-y-1">
+                                {requirement.evidence.map((evidence, index) => (
+                                  <li key={index} className="flex items-center gap-1">
+                                    <CheckCircle className="h-3 w-3 text-green-500" />
+                                    {evidence}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {requirement.issues && requirement.issues.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-medium text-red-600 mb-1">Issues:</h5>
+                              <ul className="text-xs space-y-1">
+                                {requirement.issues.map((issue, index) => (
+                                  <li key={index} className="flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3 text-red-500" />
+                                    {issue}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {requirement.recommendations && requirement.recommendations.length > 0 && (
+                            <div className="mb-3">
+                              <h5 className="text-xs font-medium text-blue-600 mb-1">Recommendations:</h5>
+                              <ul className="text-xs space-y-1">
+                                {requirement.recommendations.map((rec, index) => (
+                                  <li key={index} className="flex items-center gap-1">
+                                    <Info className="h-3 w-3 text-blue-500" />
+                                    {rec}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {requirement.status === 'non-compliant' && (
+                            <div className="flex gap-2">
                               <Button variant="outline" size="sm">
-                                <Eye className="h-3 w-3 mr-1" />
-                                View in Report
+                                Resolve Issue
+                              </Button>
+                              <Button variant="ghost" size="sm">
+                                <ExternalLink className="h-3 w-3" />
+                                View Standard
                               </Button>
                             </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                              No evidence found in current report content
-                            </div>
                           )}
-                        </TabsContent>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
 
-                        <TabsContent value="gaps" className="mt-3">
-                          {requirement.gaps && requirement.gaps.length > 0 ? (
-                            <div className="space-y-2">
-                              {requirement.gaps.map((gap, index) => (
-                                <div key={index} className="flex items-start gap-2 text-xs">
-                                  <XCircle className="h-3 w-3 text-red-500 mt-0.5 flex-shrink-0" />
-                                  <span>{gap}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                              No gaps identified
-                            </div>
-                          )}
-                        </TabsContent>
-
-                        <TabsContent value="suggestions" className="mt-3">
-                          {requirement.aiSuggestions && requirement.aiSuggestions.length > 0 ? (
-                            <div className="space-y-3">
-                              {requirement.aiSuggestions.map((suggestion, index) => (
-                                <div key={index} className="flex items-start gap-2">
-                                  <Lightbulb className="h-3 w-3 text-blue-500 mt-0.5 flex-shrink-0" />
-                                  <div className="flex-1">
-                                    <span className="text-xs">{suggestion}</span>
-                                    <div className="flex gap-1 mt-1">
-                                      <Button variant="outline" size="sm" className="h-6 text-xs">
-                                        Apply Fix
-                                      </Button>
-                                      <Button variant="ghost" size="sm" className="h-6 text-xs">
-                                        More Info
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground p-2 bg-muted rounded">
-                              No AI suggestions available
-                            </div>
-                          )}
-                        </TabsContent>
-
-                        <TabsContent value="actions" className="mt-3">
-                          {(requirement.status === 'not-met' || requirement.status === 'needs-review' || requirement.status === 'partially-met') ? (
-                            <div className="space-y-3">
-                              <div className="text-xs font-medium mb-2">Resolve this requirement:</div>
-                              
-                              <Textarea
-                                placeholder="Add resolution comments or notes..."
-                                value={resolutionComments[requirement.id] || ''}
-                                onChange={(e) => addResolutionComment(requirement.id, e.target.value)}
-                                className="h-16 text-xs"
-                              />
-                              
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => resolveIssue(requirement.id, 'accept')}
-                                  disabled={isResolvingIssue === requirement.id}
-                                  className="text-xs"
-                                >
-                                  {isResolvingIssue === requirement.id ? (
-                                    <>
-                                      <Bot className="h-3 w-3 mr-1 animate-pulse" />
-                                      Processing...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                      Mark as Met
-                                    </>
-                                  )}
-                                </Button>
-                                
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => resolveIssue(requirement.id, 'not-applicable')}
-                                  disabled={isResolvingIssue === requirement.id}
-                                  className="text-xs"
-                                >
-                                  <Info className="h-3 w-3 mr-1" />
-                                  Not Applicable
-                                </Button>
-                                
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => resolveIssue(requirement.id, 'manual-fix')}
-                                  disabled={isResolvingIssue === requirement.id}
-                                  className="text-xs"
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  Will Address Manually
-                                </Button>
-                              </div>
-                              
-                              {requirement.priority === 'critical' && (
-                                <div className="text-xs text-red-600 mt-2">
-                                  ⚠️ Critical requirement - must be resolved to proceed
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-green-600 p-2 bg-green-50 rounded flex items-center gap-2">
-                              <CheckCircle className="h-3 w-3" />
-                              This requirement has been resolved
-                            </div>
-                          )}
-                        </TabsContent>
-                      </Tabs>
-                    </CardContent>
-                  )}
-                </Card>
-              ))}
-            </div>
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      {/* Completion Actions */}
-      {canCompleteValidation() && (
+      {/* Completion Summary */}
+      {canProceed && (
         <Card className="border-green-200 bg-green-50">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-                <div>
-                  <h3 className="font-medium text-green-800">Validation Complete!</h3>
-                  <p className="text-sm text-green-700">
-                    All critical compliance requirements have been addressed. You can now proceed to the editor.
-                  </p>
+              <div className="space-y-1">
+                <h3 className="font-semibold text-green-800">Validation Complete</h3>
+                <div className="flex gap-4 text-sm text-green-700">
+                  <span>Overall Score: {overallScore}%</span>
+                  <span>{statusCounts.compliant} compliant</span>
+                  <span>{statusCounts.partiallyCompliant} partial</span>
+                  <span>{statusCounts.nonCompliant} non-compliant</span>
                 </div>
+                <p className="text-sm text-green-600">
+                  Review any non-compliant requirements before finalizing the report.
+                </p>
               </div>
-              <Button onClick={onValidationComplete} className="bg-green-600 hover:bg-green-700">
-                <Shield className="h-4 w-4 mr-2" />
-                Proceed to Editor
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export Report
+                </Button>
+                <Button onClick={() => onValidationComplete({ 
+                  score: overallScore, 
+                  requirements, 
+                  statusCounts 
+                })}>
+                  Complete Validation
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Summary Alert */}
-      {getTotalIssues() > 0 && !canCompleteValidation() && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            {getCriticalIssuesCount()} critical and {getTotalIssues() - getCriticalIssuesCount()} other compliance issues require attention. 
-            Resolve critical issues to proceed to the next step.
-          </AlertDescription>
-        </Alert>
       )}
     </div>
   )

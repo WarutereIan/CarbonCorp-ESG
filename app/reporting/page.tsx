@@ -30,6 +30,7 @@ import {
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useState } from "react"
+import { WorkflowSelectionModal } from "./components/workflow-selection-modal"
 
 type ReportStatus = "draft" | "in-review" | "pending-approval" | "approved" | "published" | "changes-requested"
 type UserRole = "admin" | "esg-manager" | "legal-counsel" | "board-member" | "viewer"
@@ -62,6 +63,8 @@ export default function ReportingPage() {
   const [currentUserRole] = useState<UserRole>("esg-manager")
   const [currentTab, setCurrentTab] = useState("dashboard")
   const [statusFilter, setStatusFilter] = useState<ReportStatus | "all">("all")
+  const [isWorkflowModalOpen, setIsWorkflowModalOpen] = useState(false)
+  const [workflowTriggerType, setWorkflowTriggerType] = useState<'create-report' | 'ai-generation'>('create-report')
 
   const reports: Report[] = [
     {
@@ -158,6 +161,16 @@ export default function ReportingPage() {
     statusFilter === "all" || report.status === statusFilter
   )
 
+  const handleCreateReport = () => {
+    setWorkflowTriggerType('create-report')
+    setIsWorkflowModalOpen(true)
+  }
+
+  const handleStartAIGeneration = () => {
+    setWorkflowTriggerType('ai-generation')
+    setIsWorkflowModalOpen(true)
+  }
+
   return (
     <div className="flex flex-col gap-6 p-6">
       {/* Header */}
@@ -171,11 +184,9 @@ export default function ReportingPage() {
             <Calendar className="mr-2 h-4 w-4" />
             Schedule Report
           </Button>
-          <Button asChild>
-            <Link href="/reporting/new">
+          <Button onClick={handleCreateReport}>
               <Plus className="mr-2 h-4 w-4" />
-              Create Report
-            </Link>
+            Create Report
           </Button>
         </div>
       </div>
@@ -188,8 +199,8 @@ export default function ReportingPage() {
               <AlertCircle className="h-5 w-5" />
               You have {pendingActions.length} pending action{pendingActions.length > 1 ? 's' : ''}
             </CardTitle>
-          </CardHeader>
-          <CardContent>
+        </CardHeader>
+        <CardContent>
             <div className="space-y-2">
               {pendingActions.slice(0, 2).map((action) => (
                 <div key={action.id} className="flex items-center justify-between bg-white p-3 rounded-lg">
@@ -208,8 +219,8 @@ export default function ReportingPage() {
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
       )}
 
       <Tabs value={currentTab} onValueChange={setCurrentTab}>
@@ -235,11 +246,9 @@ export default function ReportingPage() {
                       Complete end-to-end AI generation
                     </p>
                   </div>
-                  <Button className="w-full" asChild>
-                    <Link href="/reporting/new">
-                      Start AI Generation
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
+                  <Button className="w-full" onClick={handleStartAIGeneration}>
+                    Start AI Generation
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
@@ -302,14 +311,14 @@ export default function ReportingPage() {
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold">1</div>
                 <p className="text-sm text-muted-foreground">Published This Month</p>
-              </CardContent>
-            </Card>
-            <Card>
+        </CardContent>
+      </Card>
+          <Card>
               <CardContent className="p-4 text-center">
                 <div className="text-2xl font-bold">92%</div>
                 <p className="text-sm text-muted-foreground">Avg Compliance Score</p>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
           </div>
         </TabsContent>
 
@@ -357,7 +366,7 @@ export default function ReportingPage() {
                               AI Generated
                             </Badge>
                           )}
-                        </div>
+                          </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{report.framework}</span>
                           <span>{report.wordCount} words</span>
@@ -368,27 +377,27 @@ export default function ReportingPage() {
                               {report.pendingActions.length} pending
                             </Badge>
                           )}
-                        </div>
-                      </div>
+                            </div>
+                          </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm">
                           <Eye className="h-4 w-4" />
-                        </Button>
+                            </Button>
                         {canEdit(report) && (
                           <Button variant="ghost" size="sm" asChild>
                             <Link href="/reporting/studio">
                               <MessageSquare className="h-4 w-4" />
                             </Link>
-                          </Button>
+                            </Button>
                         )}
-                        <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm">
                           <Download className="h-4 w-4" />
-                        </Button>
+                            </Button>
                         <Button variant="ghost" size="sm">
                           <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
+                            </Button>
+                          </div>
+                </div>
                   </Card>
                 ))}
               </div>
@@ -408,7 +417,7 @@ export default function ReportingPage() {
               <div className="space-y-4">
                 {pendingActions.map((action) => (
                   <Card key={action.id} className="p-4">
-                    <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="p-2 rounded-full bg-blue-100">
                           {action.type === "review" && <MessageSquare className="h-4 w-4 text-blue-600" />}
@@ -433,14 +442,14 @@ export default function ReportingPage() {
                         </Button>
                       </div>
                     </div>
-                  </Card>
+                </Card>
                 ))}
                 {pendingActions.length === 0 && (
                   <div className="text-center py-8">
                     <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
                     <h3 className="font-medium mb-2">All caught up!</h3>
                     <p className="text-sm text-muted-foreground">No pending reviews or approvals.</p>
-                  </div>
+                        </div>
                 )}
               </div>
             </CardContent>
@@ -466,21 +475,21 @@ export default function ReportingPage() {
                           Published {report.lastModified} • {report.framework} • {report.complianceScore}% compliance
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                          <div className="flex gap-2">
                         <Button variant="outline" size="sm">
                           <Eye className="mr-2 h-4 w-4" />
                           View
-                        </Button>
+                            </Button>
                         <Button variant="outline" size="sm">
                           <Download className="mr-2 h-4 w-4" />
                           Download
-                        </Button>
+                            </Button>
                         <Button variant="outline" size="sm">
                           <Share2 className="mr-2 h-4 w-4" />
                           Share
-                        </Button>
-                      </div>
-                    </div>
+                            </Button>
+                          </div>
+                </div>
                   </Card>
                 ))}
               </div>
@@ -488,6 +497,13 @@ export default function ReportingPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Workflow Selection Modal */}
+      <WorkflowSelectionModal 
+        isOpen={isWorkflowModalOpen}
+        onClose={() => setIsWorkflowModalOpen(false)}
+        triggerType={workflowTriggerType}
+      />
     </div>
   )
 }

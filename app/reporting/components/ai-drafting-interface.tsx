@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Bot, FileText, Wand2, CheckCircle, Clock, AlertCircle, Eye, Download, Sparkles, Lightbulb, RefreshCw } from "lucide-react"
+import { Bot, FileText, Wand2, CheckCircle, Clock, AlertCircle, Eye, Download, Sparkles, Lightbulb, RefreshCw, Play, Pause, Square, Brain } from "lucide-react"
 
 interface ReportSection {
   id: string
@@ -23,473 +23,341 @@ interface ReportSection {
   parameters?: any
 }
 
-interface AIDraftingProps {
-  reportSetup: any
-  onComplete: (generatedContent: any) => void
-  onBack: () => void
+interface ReportSetup {
+  title: string
+  reportingPeriod: string
+  targetAudience: string
+  initiationMethod: string
+  selectedTemplate?: string
+  customPrompt?: string
+  selectedFrameworks: string[]
+  selectedTopics: string[]
+  selectedRegions: string[]
+  timeframes: {
+    primary: string
+    comparison?: string
+  }
+  brandKit: string
+  theme: string
+  coverStyle: string
+  colorPalette: string
 }
 
-export function AIDraftingInterface({ reportSetup, onComplete, onBack }: AIDraftingProps) {
-  const [currentPhase, setCurrentPhase] = useState<'preparing' | 'generating' | 'reviewing' | 'complete'>('preparing')
-  const [overallProgress, setOverallProgress] = useState(0)
-  const [sections, setSections] = useState<ReportSection[]>([])
-  const [currentSection, setCurrentSection] = useState<string | null>(null)
-  const [generationLog, setGenerationLog] = useState<Array<{
-    timestamp: string
-    type: 'info' | 'success' | 'warning' | 'error'
-    message: string
-  }>>([])
+interface GeneratedSection {
+  id: string
+  title: string
+  content: string
+  status: 'pending' | 'generating' | 'completed' | 'error'
+  wordCount: number
+  confidence: number
+}
 
-  // Initialize sections based on report setup
+interface AIDraftingProps {
+  reportSetup: ReportSetup
+  onComplete: (content: any) => void
+}
+
+export function AIDraftingInterface({ reportSetup, onComplete }: AIDraftingProps) {
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationProgress, setGenerationProgress] = useState(0)
+  const [currentSection, setCurrentSection] = useState<string>("")
+  const [generatedSections, setGeneratedSections] = useState<GeneratedSection[]>([])
+  const [estimatedTime, setEstimatedTime] = useState("15-20")
+
+  // Mock sections based on selected frameworks
+  const sections = [
+    { id: 'executive-summary', title: 'Executive Summary', required: true },
+    { id: 'methodology', title: 'Methodology', required: true },
+    { id: 'environmental-performance', title: 'Environmental Performance', required: true },
+    { id: 'social-impact', title: 'Social Impact', required: true },
+    { id: 'governance', title: 'Governance', required: true },
+    { id: 'risk-management', title: 'Risk Management', required: reportSetup.selectedFrameworks.includes('TCFD') },
+    { id: 'climate-disclosures', title: 'Climate-Related Disclosures', required: reportSetup.selectedFrameworks.includes('ISSB S2') },
+    { id: 'sustainability-goals', title: 'Sustainability Goals & Targets', required: true },
+    { id: 'stakeholder-engagement', title: 'Stakeholder Engagement', required: true },
+    { id: 'data-tables', title: 'Performance Data Tables', required: true },
+    { id: 'appendices', title: 'Appendices & Notes', required: false }
+  ].filter(section => section.required)
+
   useEffect(() => {
-    initializeSections()
-  }, [reportSetup])
-
-  const initializeSections = () => {
-    const reportSections: ReportSection[] = []
-
-    // Add mandatory sections based on frameworks
-    if (reportSetup.selectedFrameworks.includes('issb')) {
-      reportSections.push(
-        { id: 'executive-summary', title: 'Executive Summary', type: 'text', status: 'pending', estimatedTime: 2 },
-        { id: 'governance', title: 'Governance', type: 'text', status: 'pending', estimatedTime: 3 },
-        { id: 'strategy', title: 'Strategy', type: 'text', status: 'pending', estimatedTime: 4 },
-        { id: 'risk-management', title: 'Risk Management', type: 'text', status: 'pending', estimatedTime: 3 },
-        { id: 'metrics-targets', title: 'Metrics and Targets', type: 'text', status: 'pending', estimatedTime: 4, dependencies: ['governance'] }
-      )
-    }
-
-    if (reportSetup.selectedFrameworks.includes('csrd')) {
-      reportSections.push(
-        { id: 'business-model', title: 'Business Model and Value Chain', type: 'text', status: 'pending', estimatedTime: 3 },
-        { id: 'materiality-assessment', title: 'Materiality Assessment', type: 'text', status: 'pending', estimatedTime: 5 },
-        { id: 'policies-actions', title: 'Policies and Actions', type: 'text', status: 'pending', estimatedTime: 4 }
-      )
-    }
-
-    // Add sections based on selected topics
-    if (reportSetup.selectedTopics.includes('GHG Emissions - Scope 1')) {
-      reportSections.push(
-        { id: 'scope-1-emissions', title: 'Scope 1 GHG Emissions', type: 'text', status: 'pending', estimatedTime: 3 }
-      )
-    }
-
-    if (reportSetup.selectedTopics.includes('Employee Diversity')) {
-      reportSections.push(
-        { id: 'diversity-metrics', title: 'Diversity & Inclusion Metrics', type: 'table', status: 'pending', estimatedTime: 2 }
-      )
-    }
-
-    // Add visualizations
-    reportSections.push(
-      { id: 'emissions-chart', title: 'Emissions Overview Chart', type: 'chart', status: 'pending', estimatedTime: 2 },
-      { id: 'performance-dashboard', title: 'Performance Dashboard', type: 'infographic', status: 'pending', estimatedTime: 3 }
-    )
-
-    setSections(reportSections)
-  }
+    // Initialize sections
+    const initialSections = sections.map(section => ({
+      id: section.id,
+      title: section.title,
+      content: '',
+      status: 'pending' as const,
+      wordCount: 0,
+      confidence: 0
+    }))
+    setGeneratedSections(initialSections)
+  }, [])
 
   const startGeneration = async () => {
-    setCurrentPhase('generating')
-    addLog('info', 'Starting AI content generation process...')
-    
-    // Generate sections sequentially with dependencies
-    for (const section of sections) {
-      await generateSection(section)
-    }
+    setIsGenerating(true)
+    setGenerationProgress(0)
 
-    setCurrentPhase('reviewing')
-    setOverallProgress(100)
-    addLog('success', 'All sections generated successfully! Ready for review.')
-  }
-
-  const generateSection = async (section: ReportSection): Promise<void> => {
-    return new Promise((resolve) => {
-      setCurrentSection(section.id)
-      setSections(prev => prev.map(s => 
+    // Simulate AI generation process
+    for (let i = 0; i < generatedSections.length; i++) {
+      const section = generatedSections[i]
+      setCurrentSection(section.title)
+      
+      // Update section status to generating
+      setGeneratedSections(prev => prev.map(s => 
         s.id === section.id ? { ...s, status: 'generating' } : s
       ))
 
-      addLog('info', `Generating ${section.title}...`)
+      // Simulate generation time
+      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000))
 
-      // Simulate AI generation with realistic timing
-      const timer = setTimeout(() => {
-        // Simulate content generation
-        const generatedContent = generateMockContent(section)
-        
-        setSections(prev => prev.map(s => 
-          s.id === section.id ? { 
-            ...s, 
-            status: 'completed', 
-            content: generatedContent 
-          } : s
-        ))
+      // Mock generated content
+      const mockContent = generateMockContent(section.id, reportSetup)
+      const wordCount = mockContent.split(' ').length
+      const confidence = Math.floor(85 + Math.random() * 10) // 85-95%
 
-        addLog('success', `Completed: ${section.title}`)
-        
-        // Update progress
-        setOverallProgress(prev => {
-          const completedSections = sections.filter(s => s.id === section.id || s.status === 'completed').length
-          return Math.round((completedSections / sections.length) * 100)
-        })
+      // Update section with generated content
+      setGeneratedSections(prev => prev.map(s => 
+        s.id === section.id ? { 
+          ...s, 
+          status: 'completed',
+          content: mockContent,
+          wordCount,
+          confidence
+        } : s
+      ))
 
-        resolve()
-      }, (section.estimatedTime || 2) * 1000) // Convert to milliseconds for demo
-    })
-  }
-
-  const generateMockContent = (section: ReportSection): string => {
-    switch (section.type) {
-      case 'text':
-        return `# ${section.title}
-
-This section has been generated by AI based on your selected parameters and available data from the Data Hub.
-
-## Key Insights
-- Comprehensive analysis of ${section.title.toLowerCase()} performance
-- Integration with ${reportSetup.selectedFrameworks.join(', ')} frameworks
-- Data-driven insights from ${reportSetup.timeframes.primary} reporting period
-
-## Detailed Analysis
-The AI has analyzed your organization's performance in ${section.title.toLowerCase()} and generated this content based on:
-- Material topics identified in your assessment
-- Regulatory requirements from selected frameworks
-- Performance data from connected systems
-- Industry benchmarks and best practices
-
-*Note: This is AI-generated content that can be reviewed and refined in the next step.*`
-
-      case 'chart':
-        return `Chart Configuration:
-Type: Line Chart
-Data Source: Data Hub - Emissions Data
-Time Period: ${reportSetup.timeframes.primary}
-Metrics: Scope 1, 2, 3 Emissions
-Styling: ${reportSetup.theme} theme with ${reportSetup.colorPalette} color palette`
-
-      case 'table':
-        return `Table Structure:
-Columns: Metric, Current Year, Previous Year, % Change, Target
-Rows: Generated based on selected diversity metrics
-Data Source: HR System Integration
-Calculations: Automated from Data Hub`
-
-      case 'infographic':
-        return `Infographic Elements:
-- Key KPI cards with trend indicators
-- Progress bars for goal achievement
-- Comparative charts vs. industry benchmarks
-- Visual hierarchy matching ${reportSetup.theme} design theme`
-
-      default:
-        return 'Generated content placeholder'
+      setGenerationProgress(((i + 1) / generatedSections.length) * 100)
     }
-  }
 
-  const addLog = (type: 'info' | 'success' | 'warning' | 'error', message: string) => {
-    setGenerationLog(prev => [
-      ...prev,
-      {
-        timestamp: new Date().toLocaleTimeString(),
-        type,
-        message
-      }
-    ])
+    setIsGenerating(false)
+    setCurrentSection("")
   }
 
   const regenerateSection = async (sectionId: string) => {
-    const section = sections.find(s => s.id === sectionId)
+    setGeneratedSections(prev => prev.map(s => 
+      s.id === sectionId ? { ...s, status: 'generating' } : s
+    ))
+
+    // Simulate regeneration
+    await new Promise(resolve => setTimeout(resolve, 3000))
+
+    const section = generatedSections.find(s => s.id === sectionId)
     if (section) {
-      addLog('info', `Regenerating ${section.title}...`)
-      await generateSection(section)
+      const mockContent = generateMockContent(sectionId, reportSetup)
+      const wordCount = mockContent.split(' ').length
+      const confidence = Math.floor(85 + Math.random() * 10)
+
+      setGeneratedSections(prev => prev.map(s => 
+        s.id === sectionId ? { 
+          ...s, 
+          status: 'completed',
+          content: mockContent,
+          wordCount,
+          confidence
+        } : s
+      ))
     }
   }
 
-  const proceedToReview = () => {
-    const generatedContent = {
-      sections: sections.filter(s => s.status === 'completed'),
+  const handleComplete = () => {
+    const reportContent = {
+      title: reportSetup.title,
+      sections: generatedSections,
       metadata: {
+        totalWordCount: generatedSections.reduce((sum, s) => sum + s.wordCount, 0),
+        averageConfidence: Math.round(generatedSections.reduce((sum, s) => sum + s.confidence, 0) / generatedSections.length),
         generatedAt: new Date().toISOString(),
-        framework: reportSetup.selectedFrameworks,
-        topics: reportSetup.selectedTopics,
-        audience: reportSetup.targetAudience
+        framework: reportSetup.selectedFrameworks.join(', '),
+        reportingPeriod: reportSetup.reportingPeriod
       }
     }
-    onComplete(generatedContent)
+    onComplete(reportContent)
   }
 
-  const getPhaseIcon = (phase: string) => {
-    switch (phase) {
-      case 'preparing': return <Clock className="h-4 w-4" />
-      case 'generating': return <Bot className="h-4 w-4 animate-pulse" />
-      case 'reviewing': return <Eye className="h-4 w-4" />
-      case 'complete': return <CheckCircle className="h-4 w-4" />
-      default: return <Clock className="h-4 w-4" />
-    }
-  }
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending': return <Clock className="h-3 w-3 text-gray-400" />
-      case 'generating': return <Bot className="h-3 w-3 text-blue-500 animate-pulse" />
-      case 'completed': return <CheckCircle className="h-3 w-3 text-green-500" />
-      case 'error': return <AlertCircle className="h-3 w-3 text-red-500" />
-      default: return <Clock className="h-3 w-3" />
-    }
-  }
+  const canProceed = generatedSections.every(section => section.status === 'completed')
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Wand2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle>AI Content Generation</CardTitle>
-                <CardDescription>
-                  Generating your {reportSetup.title} using AI analysis of your data and parameters
-                </CardDescription>
-              </div>
-            </div>
-            <Badge variant="outline" className="flex items-center gap-1">
-              {getPhaseIcon(currentPhase)}
-              {currentPhase.charAt(0).toUpperCase() + currentPhase.slice(1)}
-            </Badge>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5" />
+            AI Content Generation
+          </CardTitle>
+          <CardDescription>
+            Generate report content based on your configuration
+          </CardDescription>
         </CardHeader>
-      </Card>
-
-      {/* Progress Overview */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Overall Progress</span>
-              <span className="text-sm text-muted-foreground">{overallProgress}%</span>
-            </div>
-            <Progress value={overallProgress} className="h-2" />
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <CardContent className="space-y-6">
+          {/* Configuration Summary */}
+          <div className="bg-muted/50 rounded-lg p-4">
+            <h4 className="font-medium mb-3">Generation Parameters</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <div className="text-2xl font-bold text-primary">{sections.filter(s => s.status === 'completed').length}</div>
-                <div className="text-xs text-muted-foreground">Completed</div>
+                <span className="text-muted-foreground">Framework:</span>
+                <p className="font-medium">{reportSetup.selectedFrameworks.join(', ') || 'Custom'}</p>
               </div>
               <div>
-                <div className="text-2xl font-bold text-blue-500">{sections.filter(s => s.status === 'generating').length}</div>
-                <div className="text-xs text-muted-foreground">Generating</div>
+                <span className="text-muted-foreground">Period:</span>
+                <p className="font-medium">{reportSetup.reportingPeriod}</p>
               </div>
               <div>
-                <div className="text-2xl font-bold text-gray-400">{sections.filter(s => s.status === 'pending').length}</div>
-                <div className="text-xs text-muted-foreground">Pending</div>
+                <span className="text-muted-foreground">Audience:</span>
+                <p className="font-medium">{reportSetup.targetAudience}</p>
               </div>
               <div>
-                <div className="text-2xl font-bold">{sections.length}</div>
-                <div className="text-xs text-muted-foreground">Total</div>
+                <span className="text-muted-foreground">Estimated Time:</span>
+                <p className="font-medium">{estimatedTime} minutes</p>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Main Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Section Generation Queue */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Section Generation Queue
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-96">
-                <div className="space-y-3">
-                  {sections.map((section, index) => (
-                    <div key={section.id} className={`p-3 border rounded-lg transition-all ${
-                      currentSection === section.id ? 'border-primary bg-primary/5' : ''
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">#{index + 1}</span>
-                            {getStatusIcon(section.status)}
-                          </div>
-                          <div>
-                            <div className="font-medium text-sm">{section.title}</div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary">
-                                {section.type}
-                              </Badge>
-                              {section.estimatedTime && (
-                                <span className="text-xs text-muted-foreground">
-                                  ~{section.estimatedTime}s
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        
+          {/* Generation Controls */}
+          {!isGenerating && generatedSections.every(s => s.status === 'pending') && (
+            <div className="text-center py-8">
+              <div className="mb-4">
+                <Wand2 className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold">Ready to Generate</h3>
+                <p className="text-muted-foreground">
+                  AI will generate {sections.length} sections based on your configuration
+                </p>
+              </div>
+              <Button onClick={startGeneration} size="lg">
+                <Play className="mr-2 h-4 w-4" />
+                Start AI Generation
+              </Button>
+            </div>
+          )}
+
+          {/* Generation Progress */}
+          {isGenerating && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span className="text-sm font-medium">Generating: {currentSection}</span>
+                </div>
+                <Progress value={generationProgress} className="w-full max-w-md mx-auto" />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {Math.round(generationProgress)}% complete
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Generated Sections */}
+          {generatedSections.some(s => s.status !== 'pending') && (
+            <div className="space-y-4">
+              <h4 className="font-medium">Generated Content</h4>
+              <div className="space-y-3">
+                {generatedSections.map((section) => (
+                  <Card key={section.id} className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          section.status === 'completed' ? 'bg-green-500' :
+                          section.status === 'generating' ? 'bg-blue-500 animate-pulse' :
+                          section.status === 'error' ? 'bg-red-500' : 'bg-gray-300'
+                        }`} />
+                        <h5 className="font-medium">{section.title}</h5>
                         {section.status === 'completed' && (
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => regenerateSection(section.id)}
-                            >
-                              <RefreshCw className="h-3 w-3" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-3 w-3" />
-                            </Button>
+                          <div className="flex gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {section.wordCount} words
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {section.confidence}% confidence
+                            </Badge>
                           </div>
                         )}
                       </div>
-                      
-                      {section.content && section.status === 'completed' && (
-                        <div className="mt-3 p-2 bg-muted/50 rounded text-xs">
-                          <div className="line-clamp-2">
-                            {section.content.substring(0, 150)}...
-                          </div>
+                      {section.status === 'completed' && (
+                        <div className="flex gap-2">
+                          <Button variant="ghost" size="sm">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => regenerateSection(section.id)}>
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
                         </div>
                       )}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Generation Log & Controls */}
-        <div className="space-y-6">
-          {/* Generation Log */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">Generation Log</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-48">
-                <div className="space-y-2">
-                  {generationLog.map((log, index) => (
-                    <div key={index} className="flex items-start gap-2 text-xs">
-                      <span className="text-muted-foreground">{log.timestamp}</span>
-                      <div className={`flex-1 ${
-                        log.type === 'success' ? 'text-green-600' :
-                        log.type === 'error' ? 'text-red-600' :
-                        log.type === 'warning' ? 'text-yellow-600' :
-                        'text-muted-foreground'
-                      }`}>
-                        {log.message}
+                    
+                    {section.status === 'generating' && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Generating content...
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                    )}
+                    
+                    {section.content && (
+                      <ScrollArea className="h-32">
+                        <p className="text-sm text-muted-foreground leading-relaxed">
+                          {section.content.substring(0, 500)}...
+                        </p>
+                      </ScrollArea>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
-          {/* Context Panel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Lightbulb className="h-4 w-4" />
-                Generation Context
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <div className="text-xs font-medium mb-1">Target Audience</div>
-                <Badge variant="secondary" className="text-xs">
-                  {reportSetup.targetAudience}
-                </Badge>
+          {/* Completion Summary */}
+          {canProceed && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <h4 className="font-medium text-green-800">Generation Complete</h4>
               </div>
-              <Separator />
-              <div>
-                <div className="text-xs font-medium mb-1">Frameworks</div>
-                <div className="flex flex-wrap gap-1">
-                  {reportSetup.selectedFrameworks.map((fw: string) => (
-                    <Badge key={fw} variant="outline" className="text-xs">
-                      {fw.toUpperCase()}
-                    </Badge>
-                  ))}
+              <p className="text-sm text-green-700 mb-4">
+                All sections have been generated successfully. You can now review and refine the content.
+              </p>
+              <div className="flex gap-4 text-sm">
+                <div>
+                  <span className="text-green-600">Total Words:</span>
+                  <span className="font-medium ml-1">
+                    {generatedSections.reduce((sum, s) => sum + s.wordCount, 0)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-green-600">Avg Confidence:</span>
+                  <span className="font-medium ml-1">
+                    {Math.round(generatedSections.reduce((sum, s) => sum + s.confidence, 0) / generatedSections.length)}%
+                  </span>
                 </div>
               </div>
-              <Separator />
-              <div>
-                <div className="text-xs font-medium mb-1">Period</div>
-                <div className="text-xs text-muted-foreground">
-                  {reportSetup.timeframes.primary}
-                </div>
-              </div>
-              <Separator />
-              <div>
-                <div className="text-xs font-medium mb-1">Data Sources</div>
-                <div className="text-xs text-muted-foreground">
-                  Connected to 5 sources
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Action Controls */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-3">
-                {currentPhase === 'preparing' && (
-                  <Button onClick={startGeneration} className="w-full">
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Start AI Generation
-                  </Button>
-                )}
-                
-                {currentPhase === 'generating' && (
-                  <div className="space-y-2">
-                    <Button disabled className="w-full">
-                      <Bot className="h-4 w-4 mr-2 animate-pulse" />
-                      Generating...
-                    </Button>
-                    <div className="text-xs text-center text-muted-foreground">
-                      Currently: {sections.find(s => s.id === currentSection)?.title}
-                    </div>
-                  </div>
-                )}
-                
-                {currentPhase === 'reviewing' && (
-                  <div className="space-y-2">
-                    <Button onClick={proceedToReview} className="w-full">
-                      <Eye className="h-4 w-4 mr-2" />
-                      Review Generated Content
-                    </Button>
-                    <Button variant="outline" onClick={startGeneration} className="w-full">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Regenerate All
-                    </Button>
-                  </div>
-                )}
-                
-                <Button variant="ghost" onClick={onBack} className="w-full">
-                  Back to Parameters
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Navigation */}
+      <div className="flex justify-between">
+        <Button onClick={handleComplete} disabled={!canProceed}>
+          Proceed to Review
+          <Square className="ml-2 h-4 w-4" />
+        </Button>
       </div>
-
-      {/* AI Insights Alert */}
-      {currentPhase === 'reviewing' && (
-        <Alert>
-          <Sparkles className="h-4 w-4" />
-          <AlertDescription>
-            AI generation complete! The content has been created based on your parameters and available data. 
-            You can now review each section, make adjustments, and proceed to the full editing interface.
-          </AlertDescription>
-        </Alert>
-      )}
     </div>
   )
+}
+
+// Mock content generator
+function generateMockContent(sectionId: string, reportSetup: ReportSetup): string {
+  const company = "CarbonCorp" // This would come from company settings
+  const period = reportSetup.reportingPeriod
+  
+  const mockContent: Record<string, string> = {
+    'executive-summary': `This ${period} sustainability report presents ${company}'s environmental, social, and governance (ESG) performance and our continued commitment to sustainable business practices. During this reporting period, we achieved significant milestones including a 15% reduction in Scope 1 and 2 emissions, improved employee engagement scores, and enhanced governance frameworks. Our materiality assessment identified climate change, employee wellbeing, and ethical governance as key focus areas, aligning with stakeholder expectations and business strategy. We remain committed to transparency and accountability in our sustainability journey, working towards our 2030 net-zero goals while creating value for all stakeholders.`,
+    
+    'methodology': `This report has been prepared in accordance with ${reportSetup.selectedFrameworks.join(' and ')} standards, ensuring comprehensive coverage of material ESG topics. Our reporting scope encompasses all operations within our organizational boundary, covering ${reportSetup.selectedRegions.join(', ')} regions. Data collection processes follow established protocols with third-party verification for key metrics. We apply the principle of materiality to focus on topics that significantly impact our business and stakeholders. The reporting period covers ${period}, with comparative data from previous periods where available.`,
+    
+    'environmental-performance': `Our environmental strategy focuses on reducing our carbon footprint, improving resource efficiency, and protecting biodiversity. During ${period}, we achieved a 15% reduction in absolute GHG emissions compared to the previous year, driven by renewable energy adoption and operational efficiency improvements. Water consumption decreased by 8% through conservation initiatives, while waste diversion from landfill reached 85%. We invested $2.3M in clean technology and established science-based targets aligned with 1.5°C pathways. Our environmental management system is ISO 14001 certified across all major facilities.`,
+    
+    'social-impact': `We prioritize the wellbeing and development of our 2,500+ employees while contributing positively to the communities where we operate. Employee engagement scores increased to 82%, supported by comprehensive training programs and diversity initiatives. Women represent 45% of our workforce and 35% of leadership positions. We invested $1.8M in community development programs, impacting over 15,000 beneficiaries. Our health and safety performance achieved a lost-time injury frequency rate of 0.3, well below industry average. We maintain strong labor practices and supplier standards throughout our value chain.`,
+    
+    'governance': `Strong governance foundations underpin our sustainability commitments and business integrity. Our Board includes three independent directors with ESG expertise, providing oversight of sustainability strategy and risk management. We maintain robust anti-corruption policies and conducted ethics training for 100% of employees. Executive compensation is linked to ESG performance indicators, ensuring accountability at the highest levels. Our risk management framework integrates climate and ESG risks into strategic planning processes. We engage transparently with stakeholders through regular consultations and feedback mechanisms.`
+  }
+  
+  return mockContent[sectionId] || `Generated content for ${sectionId} section focusing on ${reportSetup.targetAudience} audience. This section covers key performance indicators, strategic initiatives, and future commitments relevant to this area of our ESG performance during ${period}.`
 } 

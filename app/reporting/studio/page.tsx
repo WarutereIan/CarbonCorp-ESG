@@ -157,7 +157,7 @@ export default function ReportReviewPage() {
       </div>
 
       <div className="flex flex-1">
-        {/* Main Content */}
+      {/* Main Content */}
         <div className="flex-1">
           <Tabs value={currentTab} onValueChange={setCurrentTab} className="h-full">
             <div className="border-b px-4">
@@ -165,7 +165,7 @@ export default function ReportReviewPage() {
                 <TabsTrigger value="review">Review</TabsTrigger>
                 <TabsTrigger value="collaboration">Collaboration</TabsTrigger>
                 <TabsTrigger value="publishing">Publishing</TabsTrigger>
-              </TabsList>
+                </TabsList>
             </div>
 
             <TabsContent value="review" className="p-6 space-y-6">

@@ -1,27 +1,53 @@
 "use client"
 
-import React, { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Toggle } from "@/components/ui/toggle"
-import { ArrowLeft, ArrowRight, Wand2, FileText, Copy, Bot, Settings, Upload, Palette, Download, Search, Eye, Sparkles, Lightbulb, Image, Type, Layers, CheckCircle, ChevronRight, Shield } from "lucide-react"
-import Link from "next/link"
-
-// Import the new modular components
+import { 
+  ArrowLeft, 
+  ArrowRight, 
+  CheckCircle2, 
+  Clock, 
+  Download, 
+  FileText, 
+  Globe, 
+  Palette, 
+  PlusCircle,
+  Settings,
+  Sparkles,
+  Bot,
+  Search,
+  Upload,
+  Type,
+  Layers,
+  CheckCircle,
+  Copy,
+  Wand2,
+  Eye,
+  Image,
+  Lightbulb,
+  Shield
+} from "lucide-react"
+import { WorkflowSelector } from "../components/workflow-selector"
+import { DefaultAIWorkflow } from "../components/default-ai-workflow"
 import { AIDraftingInterface } from "../components/ai-drafting-interface"
 import { AIReviewInterface } from "../components/ai-review-interface"
 import { ComplianceValidationEngine } from "../components/compliance-validation-engine"
+import { SharingCollaborationManager } from "../components/sharing-collaboration-manager"
+import { PublishingDistribution } from "../components/publishing-distribution"
 
 interface ReportTemplate {
   id: string
@@ -58,17 +84,15 @@ interface ReportSetup {
 }
 
 export default function NewReportPage() {
-  const router = useRouter()
-  const [currentStep, setCurrentStep] = useState(1)
+  const searchParams = useSearchParams()
+  const [currentStep, setCurrentStep] = useState(0)
+  const [selectedWorkflow, setSelectedWorkflow] = useState<'default' | 'advanced' | null>(null)
   const [generatedContent, setGeneratedContent] = useState<any>(null)
   const [reportSetup, setReportSetup] = useState<ReportSetup>({
     title: "",
     reportingPeriod: "",
     targetAudience: "",
-    initiationMethod: 'template',
-    selectedTemplate: "",
-    customPrompt: "",
-    cloneFromReport: "",
+    initiationMethod: "template",
     selectedFrameworks: [],
     selectedTopics: [],
     selectedRegions: [],
@@ -78,11 +102,24 @@ export default function NewReportPage() {
     },
     brandKit: "company-default",
     theme: "corporate-blue",
-    coverStyle: "classic",
-    colorPalette: "primary"
+    coverStyle: "modern",
+    colorPalette: "blue-gradient"
   })
-  const [complianceValidated, setComplianceValidated] = useState(false)
-  const [isCompletingReport, setIsCompletingReport] = useState(false)
+
+  // Check for workflow parameter on mount
+  useEffect(() => {
+    const workflowParam = searchParams.get('workflow')
+    const triggerParam = searchParams.get('trigger')
+    
+    if (workflowParam && (workflowParam === 'default' || workflowParam === 'advanced')) {
+      setSelectedWorkflow(workflowParam)
+      
+      // If it's a default workflow, skip directly to it
+      if (workflowParam === 'default') {
+        setCurrentStep(1) // Skip workflow selection step
+      }
+    }
+  }, [searchParams])
 
   // Enhanced templates data with more details
   const templates: ReportTemplate[] = [
@@ -176,15 +213,47 @@ export default function NewReportPage() {
     { id: "2023-dei-report", name: "2023 DEI Progress Report", framework: "Custom", lastModified: "2024-01-20" }
   ]
 
+  const steps = selectedWorkflow === 'default' 
+    ? ['Workflow Selection', 'AI Generation'] 
+    : [
+        'Workflow Selection',
+        'Report Setup', 
+        'Initiation Method', 
+        'Parameter Configuration', 
+        'Visual Design', 
+        'AI Drafting', 
+        'Review & Refine', 
+        'Compliance Check',
+        'Collaboration & Review',
+        'Publishing & Distribution'
+      ]
+
+  const handleWorkflowSelection = (workflowId: 'default' | 'advanced') => {
+    setSelectedWorkflow(workflowId)
+    setCurrentStep(1)
+  }
+
+  const handleDefaultWorkflowComplete = (reportData: any) => {
+    // Handle completion of default workflow
+    console.log('Default workflow completed with data:', reportData)
+    // Redirect to report editor or final step
+  }
+
+  const handleAdvancedWorkflowBack = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
+    }
+  }
+
   const handleNext = () => {
-    if (canProceed()) {
-      setCurrentStep(prev => Math.min(7, prev + 1)) // Updated to 7 steps
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1)
     }
   }
 
   const handleBack = () => {
-    if (currentStep > 1) {
-      setCurrentStep(prev => prev - 1)
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1)
     }
   }
 
@@ -193,84 +262,96 @@ export default function NewReportPage() {
   }
 
   const handleAIDraftingComplete = (content: any) => {
+    // Handle completion of AI drafting and store the generated content
+    console.log('AI drafting completed:', content)
     setGeneratedContent(content)
     setCurrentStep(6) // Move to review step
   }
 
-  const handleAIReviewComplete = () => {
-    setCurrentStep(7) // Move to compliance validation
+  const handleAIReviewComplete = (finalContent: any) => {
+    // Handle completion of AI review and store the final content
+    console.log('AI review completed:', finalContent)
+    setGeneratedContent(finalContent)
+    setCurrentStep(7) // Move to compliance check
   }
 
-  const handleComplianceComplete = async () => {
-    setIsCompletingReport(true)
-    setComplianceValidated(true)
-    
-    // Small delay to show completion feedback
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    // Navigate to the reporting studio with the generated content
-    // In a real implementation, you might want to save the report data first
-    router.push('/reporting/studio?source=ai-generation&title=' + encodeURIComponent(reportSetup.title))
+  const handleComplianceComplete = async (validationResults: any) => {
+    // Handle compliance check completion
+    console.log('Compliance check completed:', validationResults)
+    // Progress to collaboration step
+    setCurrentStep(8)
   }
 
   const handleValidationComplete = () => {
-    setComplianceValidated(true)
-    // Show success feedback when all critical issues are resolved automatically
-    // This function is called by the ComplianceValidationEngine when issues are resolved
+    setCurrentStep(prev => prev + 1)
   }
 
   const onComplianceIssueResolve = (requirementId: string, resolution: any) => {
     console.log("Resolving compliance issue:", requirementId, resolution)
-    // Handle compliance issue resolution
   }
 
   const canProceed = () => {
     switch (currentStep) {
-      case 1:
-        return reportSetup.title && reportSetup.reportingPeriod && reportSetup.targetAudience
+      case 0: // Workflow Selection
+        return selectedWorkflow !== null
+      case 1: // Report Setup (advanced) or AI Generation (default)
+        if (selectedWorkflow === 'default') return true
+        return reportSetup.title && reportSetup.reportingPeriod
       case 2:
         return reportSetup.initiationMethod && (
-          reportSetup.initiationMethod === 'ai-prompt' ? reportSetup.customPrompt :
-          reportSetup.initiationMethod === 'clone' ? reportSetup.cloneFromReport :
-          reportSetup.selectedTemplate
+          reportSetup.initiationMethod === 'ai-prompt' || 
+          reportSetup.selectedTemplate || 
+          reportSetup.cloneFromReport
         )
       case 3:
-        return reportSetup.selectedFrameworks.length > 0 && reportSetup.selectedTopics.length > 0
+        return reportSetup.selectedFrameworks.length > 0 || reportSetup.selectedTopics.length > 0
       case 4:
-        return reportSetup.brandKit && reportSetup.theme
-      case 5:
-        return true // AI Drafting - proceed automatically after completion
-      case 6:
-        return true // AI Review - proceed after user review
-      case 7:
-        return complianceValidated
+        return true // Visual design step is optional
       default:
-        return true
+        return false
     }
   }
 
   const getStepTitle = (step: number) => {
-    switch (step) {
-      case 1: return "Report Setup"
-      case 2: return "Initiation Method"
-      case 3: return "Parameters & Scope"
-      case 4: return "Visual Design"
-      case 5: return "AI Content Generation"
-      case 6: return "Review & Refinement"
-      case 7: return "Compliance Validation"
-      default: return `Step ${step}`
+    if (selectedWorkflow === 'default') {
+      switch (step) {
+        case 0: return "Choose Workflow"
+        case 1: return "AI Report Generation"
+        default: return "Report Creation"
+      }
+    } else {
+      // Advanced workflow step titles
+      switch (step) {
+        case 0: return "Choose Workflow"
+        case 1: return "Report Setup"
+        case 2: return "Initiation Method"
+        case 3: return "Parameter Configuration"
+        case 4: return "Visual Design"
+        case 5: return "AI Drafting"
+        case 6: return "Review & Refine"
+        case 7: return "Compliance Check"
+        case 8: return "Collaboration & Review"
+        case 9: return "Publishing & Distribution"
+        default: return "Report Creation"
+      }
     }
   }
 
-  const renderStepContent = () => {
+  function renderStepContent() {
+    if (selectedWorkflow === 'default') {
+      return (
+        <DefaultAIWorkflow
+          onComplete={handleDefaultWorkflowComplete}
+          onBack={() => setSelectedWorkflow(null)}
+        />
+      )
+    }
+
+    // Advanced workflow steps
     switch (currentStep) {
       case 1:
-        return (
-          <ReportSetupStep 
-            reportSetup={reportSetup} 
-            updateReportSetup={updateReportSetup}
-          />
-        )
+        return <ReportSetupStep reportSetup={reportSetup} updateReportSetup={updateReportSetup} />
+      
       case 2:
         return (
           <InitiationMethodStep 
@@ -280,186 +361,169 @@ export default function NewReportPage() {
             existingReports={existingReports}
           />
         )
+      
       case 3:
-        return (
-          <ParameterConfigurationStep 
-            reportSetup={reportSetup} 
-            updateReportSetup={updateReportSetup}
-          />
-        )
+        return <ParameterConfigurationStep reportSetup={reportSetup} updateReportSetup={updateReportSetup} />
+      
       case 4:
-        return (
-          <VisualDesignStep 
-            reportSetup={reportSetup} 
-            updateReportSetup={updateReportSetup}
-          />
-        )
+        return <VisualDesignStep reportSetup={reportSetup} updateReportSetup={updateReportSetup} />
+      
       case 5:
         return (
           <AIDraftingInterface
             reportSetup={reportSetup}
             onComplete={handleAIDraftingComplete}
-            onBack={handleBack}
           />
         )
+      
       case 6:
         return (
           <AIReviewInterface
             generatedContent={generatedContent}
             onAccept={handleAIReviewComplete}
-            onBack={handleBack}
           />
         )
+      
       case 7:
         return (
           <ComplianceValidationEngine
             reportContent={generatedContent}
             selectedFrameworks={reportSetup.selectedFrameworks}
+            onValidationComplete={handleComplianceComplete}
             onIssueResolve={onComplianceIssueResolve}
-            onValidationComplete={handleValidationComplete}
           />
         )
+      
+      case 8:
+        return (
+          <SharingCollaborationManager
+            reportId={`report-${Date.now()}`}
+            reportTitle={reportSetup.title || 'ESG Report'}
+            currentUser={{
+              id: 'current-user',
+              name: 'Current User',
+              email: 'user@company.com',
+              role: 'owner',
+              status: 'active',
+              joinedAt: new Date().toISOString(),
+              lastActivity: new Date().toISOString()
+            }}
+            onShare={(data: any) => {
+              console.log('Collaboration data:', data)
+              // Handle collaboration completion and move to publishing
+              setCurrentStep(9)
+            }}
+          />
+        )
+      
+      case 9:
+        return (
+          <PublishingDistribution
+            reportId={`report-${Date.now()}`}
+            reportTitle={reportSetup.title || 'ESG Report'}
+            content={generatedContent}
+            onPublish={(data: any) => {
+              console.log('Publishing data:', data)
+              // Handle publishing completion - could redirect to success page
+            }}
+            onSchedule={(data: any) => {
+              console.log('Scheduling data:', data)
+              // Handle scheduling completion
+            }}
+          />
+        )
+      
       default:
-        return <div>Step not found</div>
+        return <div>Step not implemented</div>
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <div className="border-b bg-white">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href="/reporting" className="text-sm text-muted-foreground hover:text-primary">
-                ← Back to Reports
-              </Link>
-              <div className="h-4 w-px bg-gray-300" />
-              <h1 className="text-lg font-semibold">Create New Report</h1>
+              <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Reports
+              </Button>
+              <div className="h-6 w-px bg-gray-300" />
+              <div>
+                <h1 className="text-lg font-semibold">{getStepTitle(currentStep)}</h1>
+                <p className="text-sm text-muted-foreground">
+                  {selectedWorkflow === 'default' ? 'AI-Powered Generation' : 'Advanced Report Builder'}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-3">
-              <Badge variant="outline">{getStepTitle(currentStep)}</Badge>
-              <span className="text-sm text-muted-foreground">
-                Step {currentStep} of 7
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Progress Indicator */}
-      <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center space-x-8">
-              {[1, 2, 3, 4, 5, 6, 7].map((step) => (
-                <div key={step} className="flex items-center">
-                  <div className={`flex items-center justify-center w-8 h-8 rounded-full ${
-                    step < currentStep ? 'bg-primary text-white' :
-                    step === currentStep ? 'bg-primary text-white' :
-                    'bg-gray-200 text-gray-500'
-                  }`}>
-                    {step < currentStep ? <CheckCircle className="h-4 w-4" /> : step}
-                  </div>
-                  <div className="ml-2 hidden sm:block">
-                    <div className={`text-sm font-medium ${
-                      step <= currentStep ? 'text-gray-900' : 'text-gray-500'
-                    }`}>
-                      {getStepTitle(step)}
-                    </div>
-                  </div>
-                  {step < 7 && (
-                    <ChevronRight className="h-4 w-4 text-gray-400 mx-4" />
-                  )}
-                </div>
-              ))}
+              <div className="text-sm text-muted-foreground">
+                Step {currentStep + 1} of {steps.length}
+              </div>
+              <Progress value={((currentStep + 1) / steps.length) * 100} className="w-32" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {renderStepContent()}
-      </main>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Progress Sidebar */}
+          <div className="lg:col-span-1">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Progress</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {steps.map((step, index) => (
+                  <div key={index} className={`flex items-center gap-2 text-sm p-2 rounded-md ${
+                    index === currentStep ? 'bg-blue-50 text-blue-700' : 
+                    index < currentStep ? 'text-green-700' : 'text-muted-foreground'
+                  }`}>
+                    {index < currentStep ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    ) : index === currentStep ? (
+                      <Clock className="h-4 w-4 text-blue-600" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                    )}
+                    <span className="font-medium">{step}</span>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* Footer with Navigation */}
-      {currentStep <= 4 && (
-        <footer className="bg-white border-t sticky bottom-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between py-4">
-              <Button 
-                variant="outline" 
-                onClick={handleBack}
-                disabled={currentStep === 1}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back
-              </Button>
-              
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  {currentStep} of 7 steps completed
-                </span>
-                <Button 
-                  onClick={handleNext}
-                  disabled={!canProceed()}
-                  className="min-w-[120px]"
-                >
-                  {currentStep === 4 ? (
-                    <>
-                      Start AI Generation
-                      <Sparkles className="h-4 w-4 ml-2" />
-                    </>
-                  ) : (
-                    <>
-                      Next Step
-                      <ArrowRight className="h-4 w-4 ml-2" />
-                    </>
-                  )}
-                </Button>
-              </div>
+          {/* Main Content */}
+          <div className="lg:col-span-3">
+            <div className="space-y-6">
+              {renderStepContent()}
+
+              {/* Navigation */}
+              {(selectedWorkflow === 'advanced' || (selectedWorkflow === 'default' && currentStep === 0)) && 
+               currentStep !== 5 && currentStep !== 6 && currentStep !== 7 && currentStep !== 8 && currentStep !== 9 && (
+                <div className="flex justify-between pt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleBack}
+                    disabled={currentStep === 0}
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
+                  <Button 
+                    onClick={handleNext}
+                    disabled={!canProceed() || currentStep === steps.length - 1}
+                  >
+                    Next
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
-        </footer>
-      )}
-
-      {/* Final Actions for Compliance Step */}
-      {currentStep === 7 && (
-        <footer className="bg-white border-t sticky bottom-0">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between py-4">
-              <Button 
-                variant="outline" 
-                onClick={handleBack}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Review
-              </Button>
-              
-              <div className="flex items-center gap-3">
-                <Button 
-                  onClick={handleComplianceComplete}
-                  disabled={!complianceValidated || isCompletingReport}
-                  className="min-w-[180px]"
-                >
-                  {isCompletingReport ? (
-                    <>
-                      <Sparkles className="h-4 w-4 mr-2 animate-pulse" />
-                      Opening Editor...
-                    </>
-                  ) : (
-                    <>
-                      <Shield className="h-4 w-4 mr-2" />
-                      Complete & Open Editor
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </footer>
-      )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -468,7 +532,7 @@ export default function NewReportPage() {
 function ReportSetupStep({ reportSetup, updateReportSetup }: {
   reportSetup: ReportSetup
   updateReportSetup: (updates: Partial<ReportSetup>) => void
-}) {
+}): React.ReactElement {
   return (
     <Card>
       <CardHeader>
@@ -549,7 +613,7 @@ function InitiationMethodStep({ reportSetup, updateReportSetup, templates, exist
   updateReportSetup: (updates: Partial<ReportSetup>) => void
   templates: ReportTemplate[]
   existingReports: any[]
-}) {
+}): React.ReactElement {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterFramework, setFilterFramework] = useState("all")
   
